@@ -1,0 +1,16 @@
+services:
+  marmos_ui:
+    build:
+      context: ..
+      dockerfile: ./config/Dockerfile
+    container_name: marmos_ui
+    network_mode: host
+
+    environment:
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - ../app:/usr/src/marmos/app
+      - /tmp/.X11-unix:/tmp/.X11-unix
+
+    # devices:
+    #   - "/dev/video0:/dev/video0"  # Para PiCam ou OAK-1
