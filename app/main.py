@@ -24,12 +24,6 @@ from kivy.core.window import Window
 from screens.home_screen import HomeScreen
 
 class SplashScreen(Screen):
-    """
-    Tela de Splash (SplashScreen).
-
-    Exibe uma imagem centralizada com animação de fade-in e fade-out
-    antes de transicionar para a tela principal.
-    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
@@ -55,10 +49,6 @@ class SplashScreen(Screen):
         self.add_widget(layout)
 
     def on_enter(self, *args):
-        """
-        Este método é chamado quando a tela é exibida.
-        Inicia a animação de fade-in.
-        """
         # Animação de fade-in: opacidade de 0 para 1 em 1.5 segundos
         fade_in_animation = Animation(opacity=1, duration=3)
         fade_in_animation.start(self.logo)
@@ -67,9 +57,6 @@ class SplashScreen(Screen):
         Clock.schedule_once(self.start_fade_out, 10)
 
     def start_fade_out(self, *args):
-        """
-        Inicia a animação de fade-out e define o que fazer ao completá-la.
-        """
         # Animação de fade-out: opacidade de 1 para 0 em 1.5 segundos
         fade_out_animation = Animation(opacity=0, duration=3)
         
@@ -79,9 +66,6 @@ class SplashScreen(Screen):
         fade_out_animation.start(self.logo)
 
     def change_to_home_screen(self, *args):
-        """
-        Muda para a tela principal (HomeScreen).
-        """
         if self.manager:
             self.manager.current = 'home'
 
