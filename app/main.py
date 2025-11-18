@@ -1,93 +1,106 @@
-# app/main.py
-# -*- coding: utf-8 -*-
-
 import os
-from kivy.config import Config
-
-# --- Configuração do Kivy ---
-# Estas configurações devem ser definidas ANTES de importar outros módulos do Kivy.
-# Define o modo de tela cheia. 'auto' usa o modo nativo do sistema operacional.
-# Essencial para o Raspberry Pi bootar diretamente no app.
-Config.set('graphics', 'fullscreen', 'auto')
-Config.set('graphics', 'window_state', 'maximized')
-Config.write()
+# Set Kivy to fullscreen mode for the Raspberry Pi display
+os.environ['KIVY_WINDOW'] = 'fullscreen'
+# Use the fake KMS/DRM backend on Raspberry Pi
+os.environ['KIVY_BCM_DISPMANX_ID'] = '4' # HDMI
+os.environ['KIVY_EGL_DEVICE_ID'] = '/dev/dri/card0'
 
 from kivy.app import App
-from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
-from kivy.uix.image import Image
-from kivy.uix.floatlayout import FloatLayout
-from kivy.animation import Animation
+from kivy.lang import Builder
+from kivy.uix.screenmanager import ScreenManager
 from kivy.clock import Clock
 from kivy.core.window import Window
 
-# Importa a tela principal da aplicação
-from screens.home_screen import HomeScreen
+from app.models.app_state import AppState
+from app.services.trigger_service import TriggerService
 
-class SplashScreen(Screen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        
-        # Define o layout que permitirá o posicionamento flexível da imagem
-        layout = FloatLayout()
-        
-        # Define a cor de fundo da janela como preto
-        Window.clearcolor = (0, 0, 0, 1) # RGBA para preto
-
-        # Carrega a imagem do logo
-        # O caminho é relativo ao diretório onde o script é executado
-        logo_path = os.path.join('assets', 'images', 'logo_marmos.png')
-        
-        self.logo = Image(
-            source=logo_path,
-            size_hint=(None, None),
-            size=(400, 400), # Tamanho da imagem (ajuste conforme necessário)
-            pos_hint={'center_x': 0.5, 'center_y': 0.5},
-            opacity=0  # Começa totalmente transparente para o fade-in
-        )
-        
-        layout.add_widget(self.logo)
-        self.add_widget(layout)
-
-    def on_enter(self, *args):
-        # Animação de fade-in: opacidade de 0 para 1 em 1.5 segundos
-        fade_in_animation = Animation(opacity=1, duration=3)
-        fade_in_animation.start(self.logo)
-        
-        # Agenda a transição para a próxima tela após 3 segundos
-        Clock.schedule_once(self.start_fade_out, 10)
-
-    def start_fade_out(self, *args):
-        # Animação de fade-out: opacidade de 1 para 0 em 1.5 segundos
-        fade_out_animation = Animation(opacity=0, duration=3)
-        
-        # Ao completar a animação de fade-out, chama o método para trocar de tela
-        fade_out_animation.bind(on_complete=self.change_to_home_screen)
-        
-        fade_out_animation.start(self.logo)
-
-    def change_to_home_screen(self, *args):
-        if self.manager:
-            self.manager.current = 'home'
-
-
-class MarmosUIApp(App):
+class MarmosApp(App):
     """
-    Classe principal da aplicação Kivy.
+    The main application class for the MARMOS-UI.
+    It orchestrates the screens, state, and hardware services.
     """
+
     def build(self):
         """
-        Constrói a interface da aplicação.
+        Initializes the application, loads the KV file, and sets up services.
         """
-        # Cria o gerenciador de telas com uma transição de fade
-        sm = ScreenManager(transition=FadeTransition(duration=1))
+        self.title = 'MARMOS-UI'
         
-        # Adiciona as telas ao gerenciador
-        # A primeira tela adicionada ('splash') será a tela inicial
-        sm.add_widget(SplashScreen(name='splash'))
-        sm.add_widget(HomeScreen(name='home'))
+        # Set fullscreen if the environment variable didn't catch it
+        Window.fullscreen = 'auto'
+
+        # Instantiate global state and services
+        self.state = AppState()
+        self.trigger_service = TriggerService()
+        self.trigger_service.bind(on_press=self.on_physical_trigger)
+
+        # Load the main KV file which defines the UI
+        # The ScreenManager is the root widget
+        sm = Builder.load_file('app/marmos.kv')
+        
+        # Add a reference to the app in the screen manager for easy access
+        sm.app = self
         
         return sm
 
-# --- Ponto de Entrada da Aplicação ---
+    def on_start(self):
+        """
+        Called after the build() method is finished.
+        Handles the initial screen transition from the splash screen.
+        """
+        Clock.schedule_once(self.go_to_initial_screen, 3.0) # Show splash for 3 seconds
+
+    def go_to_initial_screen(self, dt):
+        """
+        Decides which screen to show after the splash screen.
+        """
+        if self.state.is_wifi_configured():
+            self.root.current = 'home_screen'
+        else:
+            self.root.current = 'wifi_status_screen'
+
+    def on_physical_trigger(self, *args):
+        """
+        Handles the 'on_press' event from the TriggerService.
+        The behavior depends on the currently active screen.
+        """
+        current_screen_name = self.root.current
+        current_screen = self.root.current_screen
+
+        if current_screen_name == 'wifi_status_screen':
+            # Behave as "Configurar Wi-Fi"
+            self.root.current = 'wifi_qr_screen'
+            
+        elif current_screen_name == 'wifi_qr_screen':
+            # Force a decode attempt (or confirm after read)
+            # For simplicity, we can just log this. A more complex implementation
+            # could trigger the decode logic manually.
+            print("Trigger pressed on Wi-Fi QR screen.")
+
+        elif current_screen_name == 'home_screen':
+            # Behave as "Iniciar Leitura da Carne"
+            self.root.current = 'meat_qr_screen'
+
+        elif current_screen_name == 'meat_qr_screen':
+            # Force decode or confirm
+            print("Trigger pressed on Meat QR screen.")
+
+        elif current_screen_name == 'result_screen':
+            # Behave as "Voltar ao Início"
+            current_screen.go_to_home()
+            
+        elif current_screen_name == 'error_screen':
+            # Apply a simple retry rule
+            current_screen.retry_action()
+
+        # The trigger is ignored on the splash screen.
+
+    def on_stop(self):
+        """
+        Called when the application is closed.
+        Cleans up resources like the trigger service.
+        """
+        self.trigger_service.stop()
+
 if __name__ == '__main__':
-    MarmosUIApp().run()
+    MarmosApp().run()

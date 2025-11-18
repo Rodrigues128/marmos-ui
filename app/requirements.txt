@@ -1,5 +1,10 @@
-kivy==2.3.1
-opencv-python==4.10.0.84
-pyzbar==0.1.9
-depthai==2.24.0.0
-gpiozero==1.6.2
+# Kivy framework and dependencies
+kivy==2.3.0
+# For Raspberry Pi hardware access
+gpiozero
+RPi.GPIO
+# For QR code decoding
+opencv-python-headless
+pyzbar
+# Pillow is a dependency for Kivy but it's good to specify it
+Pillow
