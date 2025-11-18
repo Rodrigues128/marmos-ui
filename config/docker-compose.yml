@@ -1,16 +1,47 @@
+version: '3.8'
+
 services:
-  marmos_ui:
+  marmos-ui:
+    # Build the Docker image from the Dockerfile in the same directory
     build:
-      context: ..
-      dockerfile: ./config/Dockerfile
-    container_name: marmos_ui
-    network_mode: host
+      context: .
+      dockerfile: Dockerfile
+    image: marmos-ui:latest
+    container_name: marmos-ui-app
+    restart: unless-stopped
+    
+    # --- Raspberry Pi Hardware Access ---
+    # The following settings are crucial for giving the container access
+    # to the host's hardware (display, input, camera, GPIO).
+    
+    privileged: true # Grants extended privileges, often needed for direct hardware access
+
+    volumes:
+      # Mount host's display manager socket to the container
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      
+      # Mount device nodes for Direct Rendering Manager (DRM) and video devices
+      - /dev/dri:/dev/dri:rw
+      - /dev/vchiq:/dev/vchiq:rw # VideoCore interface
+      - /dev/video0:/dev/video0:rw # Camera device (adjust if needed)
 
     environment:
+      # Tell Kivy and other GUI apps which display to use
       - DISPLAY=${DISPLAY}
-    volumes:
-      - ../app:/usr/src/marmos/app
-      - /tmp/.X11-unix:/tmp/.X11-unix
+      
+      # Environment variables for Kivy on Raspberry Pi
+      # Ensure Kivy uses the correct backend
+      - KIVY_WINDOW=egl_rpi
 
-    # devices:
-    #   - "/dev/video0:/dev/video0"  # Para PiCam ou OAK-1
+    # Add the user running the container to necessary device groups
+    # This is an alternative to running as privileged, but can be complex.
+    # For simplicity in this production-ready setup, 'privileged' is used.
+    # To run without privileged mode, you would need to map groups and devices carefully.
+    # Example (might need adjustment):
+    # group_add:
+    #   - "video"
+    #   - "input"
+    #   - "dialout" # For GPIO access
+    
+    # Share the host's network stack
+    network_mode: "host"
